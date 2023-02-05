@@ -4,7 +4,6 @@ params.genome = "GRCh38.p13"
 params.genome_folder = "data/reference"
 
 int cores = Runtime.getRuntime().availableProcessors();
-
 params.threads = cores -1 //let's keep one thread unused for other stuff
 params.deepvariant_version = "deeptrio-1.4.0"
 params.model = "WGS" //[WGS,WES,PACBIO,HYBRID_PACBIO_ILLUMINA]**
@@ -34,24 +33,27 @@ process download_genome {
     genomepy install --genomes_dir ${genome_folder} $genome
     """
     output:
-        path "$genome"
-        path "$genome/${params.genome}.fa"
+        path "${genome_folder}/${genome}"
+        path "${genome_folder}/${genome}/${genome}.fa"
 }
 
 process deeptrio {
+
+  debug true
 
   container "google/deepvariant:$params.deepvariant_version"
 
   publishDir params.output_dir
 
-  tag "deeptrio on $params.family_name"
+  tag "deeptrio on ${params.family_name}"
 
   input:
     path input_dir
     path reference_genome
 
   output:
-    path "${results}"
+    path params.family_name
+
 
   script:
   """
@@ -64,18 +66,18 @@ process deeptrio {
   --sample_name_child=${params.child_name} \
   --sample_name_parent1=${params.parent1_name} \
   --sample_name_parent2=${params.parent2_name} \
-  --output_vcf_child ${results}/${params.child_name}.vcf \
-  --output_vcf_parent1 ${results}/${params.parent1_name}.vcf \
-  --output_vcf_parent2 ${results}/${params.parent2_name}.vcf \
-  --output_gvcf_child ${results}/${params.child_name}.g.vcf \
-  --output_gvcf_parent1 ${results}/${params.parent1_name}.g.vcf \
-  --output_gvcf_parent2 ${results}/${params.parent2_name}.g.vcf \
-  --output_gvcf_merged ${results}/${params.family_name}.g.vcf \
-  --num_shards=${params.cores} \
-  --logging_dir ${results}/logs \
+  --output_vcf_child ${params.family_name}/${params.child_name}.vcf \
+  --output_vcf_parent1 ${params.family_name}/${params.parent1_name}.vcf \
+  --output_vcf_parent2 ${params.family_name}/${params.parent2_name}.vcf \
+  --output_gvcf_child ${params.family_name}/${params.child_name}.g.vcf \
+  --output_gvcf_parent1 ${params.family_name}/${params.parent1_name}.g.vcf \
+  --output_gvcf_parent2 ${params.family_name}/${params.parent2_name}.g.vcf \
+  --output_gvcf_merged ${params.family_name}/${params.family_name}.g.vcf \
+  --num_shards=${params.threads} \
+  --logging_dir logs \
+  --intermediate_results_dir intermediate \
   --runtime_report \
-  --vcf_stats_report \
-  --intermediate_results_dir ${results}/intermediate
+  --vcf_stats_report
   """
   // --postprocess_variants_extra_args flag_name=flag_value
 }

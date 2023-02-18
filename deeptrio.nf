@@ -1,6 +1,6 @@
 #!/usr/bin/env nextflow
 
-params.genome = "hs37d5.chr20" //"GRCh38.p13"
+params.genome = "hs37d5.chr20" //"GRCh38.p13" 
 params.reference_folder = "data/reference"
 params.genome_fasta_name = "hs37d5.chr20.fa.gz"
 
@@ -18,24 +18,6 @@ params.family_name = "test_family"
 params.child_name = "test_child"
 params.parent1_name = "test_parent1"
 params.parent2_name = "test_parent2"
-/*
-  --output_vcf_child "/output/HG002.output.vcf.gz" \
-  --output_vcf_parent1 "/output/HG003.output.vcf.gz" \
-  --output_vcf_parent2 "/output/HG004.output.vcf.gz" \
-  --sample_name_child 'HG002' \
-  --sample_name_parent1 'HG003' \
-  --sample_name_parent2 'HG004' \
-*/
-/*
-  --output_vcf_child ./${params.family_name}/${params.child_name}.vcf \
-  --output_vcf_parent1 ./${params.family_name}/${params.parent1_name}.vcf \
-  --output_vcf_parent2 ./${params.family_name}/${params.parent2_name}.vcf \
-  --output_gvcf_child ./${params.family_name}/${params.child_name}.g.vcf \
-  --output_gvcf_parent1 ./${params.family_name}/${params.parent1_name}.g.vcf \
-  --output_gvcf_parent2 ./${params.family_name}/${params.parent2_name}.g.vcf \
-  --output_gvcf_merged ./${params.family_name}/${params.family_name}.g.vcf \
-
-*/
 
 
 
@@ -76,6 +58,11 @@ process deeptrio {
 
   script:
   """
+  echo "starting deeptrio variant calling"
+  echo "for the family ${params.family_name} "
+  echo "for the reference ${reference_dir}"
+  echo "with the input dir ${input_dir}"
+  echo "with the input genome fasta name ${genome_fasta_name}"
   mkdir ${params.family_name}
   mkdir intermediate
   echo \$(ls)
@@ -108,8 +95,6 @@ workflow {
   main:
     input_dir_ch = Channel.fromPath(params.input_dir)
     def genome_folder = params.reference_folder + "/" + params.genome 
-    
-    
     def expected_fasta = file(genome_folder + "/" + params.genome_fasta_name)
     def reference_provided = (params.genome_fasta_name != null) && expected_fasta.isFile()
 
@@ -119,6 +104,17 @@ workflow {
       deeptrio(input_dir_ch, genome_dir_ch, genome_fasta_name_ch)
     } else {
       println("reference ${expected_fasta} does not seem to exist!")
+      println("trying to download the genome with genomepy")
+      genome_ch = Channel.value(params.genome)
+      reference_folder_ch = Channel.fromPath(params.reference_folder)
+
+      download_genome(genome_ch,  reference_folder_ch)
+      genome_path = download_genome
+      println("DOWNLOADED the genome, starting the deeptrio process!")
+      genome_dir_ch = Channel.fromPath(genome_folder)
+      genome_fasta_name_ch = Channel.value(params.genome + ".fa") //it is rully ugly, but should work with Ensembl
+      deeptrio(input_dir_ch, genome_dir_ch, genome_fasta_name_ch)
+      
     }
 
     /*

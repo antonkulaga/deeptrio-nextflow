@@ -7,7 +7,7 @@ To run the pipeline you need nextflow and singularity (see https://sylabs.io/sin
 ```
 nextflow run deeptrio.nf <parameters>
 ```
-To download the latest human genome you can use prepare.nf workflow.
+On the first run the pipeline downloads reference genome.
 
 You can read more about nextflow at https://www.nextflow.io/ and watch introductory tutorial at https://www.youtube.com/watch?v=wbtMbJTo1xo&list=PLPZ8WHdZGxmUVZRUfua8CsjuhjZ96t62R (note many examples there are for DSL 1, while here I am using DSL 2)
 

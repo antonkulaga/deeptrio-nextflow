@@ -1,0 +1,1 @@
+singularity shell docker://google/deepvariant:deeptrio-1.4.0

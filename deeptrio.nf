@@ -1,7 +1,8 @@
 #!/usr/bin/env nextflow
 
-params.genome = "GRCh38.p13"
-params.genome_folder = "data/reference"
+params.genome = "hs37d5.chr20" //"GRCh38.p13"
+params.reference_folder = "data/reference"
+params.genome_fasta_name = "hs37d5.chr20.fa.gz"
 
 int cores = Runtime.getRuntime().availableProcessors();
 params.threads = cores -1 //let's keep one thread unused for other stuff
@@ -11,17 +12,34 @@ params.input_dir = "test"
 params.reads_child = "HG001.chr20.10_10p1mb_sorted.bam"
 params.reads_parent1 = "NA12891.chr20.10_10p1mb_sorted.bam"
 params.reads_parent2 = "NA12892.chr20.10_10p1mb_sorted.bam"
-params.reference_genome = "hs37d5.chr20.fa.gz"
+
 params.output_dir = "./results"
 params.family_name = "test_family"
 params.child_name = "test_child"
 params.parent1_name = "test_parent1"
 params.parent2_name = "test_parent2"
-//params.dry_run = false
+/*
+  --output_vcf_child "/output/HG002.output.vcf.gz" \
+  --output_vcf_parent1 "/output/HG003.output.vcf.gz" \
+  --output_vcf_parent2 "/output/HG004.output.vcf.gz" \
+  --sample_name_child 'HG002' \
+  --sample_name_parent1 'HG003' \
+  --sample_name_parent2 'HG004' \
+*/
+/*
+  --output_vcf_child ./${params.family_name}/${params.child_name}.vcf \
+  --output_vcf_parent1 ./${params.family_name}/${params.parent1_name}.vcf \
+  --output_vcf_parent2 ./${params.family_name}/${params.parent2_name}.vcf \
+  --output_gvcf_child ./${params.family_name}/${params.child_name}.g.vcf \
+  --output_gvcf_parent1 ./${params.family_name}/${params.parent1_name}.g.vcf \
+  --output_gvcf_parent2 ./${params.family_name}/${params.parent2_name}.g.vcf \
+  --output_gvcf_merged ./${params.family_name}/${params.family_name}.g.vcf \
+
+*/
+
+
 
 process download_genome {
-    
-    publishDir params.genome_folder
 
     container "quay.io/biocontainers/genomepy:0.14.0--pyh7cba7a3_2"
     input: 
@@ -34,7 +52,6 @@ process download_genome {
     """
     output:
         path "${genome_folder}/${genome}"
-        path "${genome_folder}/${genome}/${genome}.fa"
 }
 
 process deeptrio {
@@ -49,7 +66,9 @@ process deeptrio {
 
   input:
     path input_dir
-    path reference_genome
+    path reference_dir
+    val genome_fasta_name
+    
 
   output:
     path params.family_name
@@ -57,22 +76,25 @@ process deeptrio {
 
   script:
   """
+  mkdir ${params.family_name}
+  mkdir intermediate
+  echo \$(ls)
   /opt/deepvariant/bin/deeptrio/run_deeptrio \
   --model_type=${params.model} \
-  --ref=${reference_genome} \
+  --ref=${reference_dir}/${genome_fasta_name} \
   --reads_child=${input_dir}/${params.reads_child} \
   --reads_parent1=${input_dir}/${params.reads_parent1} \
   --reads_parent2=${input_dir}/${params.reads_parent2} \
   --sample_name_child=${params.child_name} \
   --sample_name_parent1=${params.parent1_name} \
   --sample_name_parent2=${params.parent2_name} \
-  --output_vcf_child ${params.family_name}/${params.child_name}.vcf \
-  --output_vcf_parent1 ${params.family_name}/${params.parent1_name}.vcf \
-  --output_vcf_parent2 ${params.family_name}/${params.parent2_name}.vcf \
-  --output_gvcf_child ${params.family_name}/${params.child_name}.g.vcf \
-  --output_gvcf_parent1 ${params.family_name}/${params.parent1_name}.g.vcf \
-  --output_gvcf_parent2 ${params.family_name}/${params.parent2_name}.g.vcf \
-  --output_gvcf_merged ${params.family_name}/${params.family_name}.g.vcf \
+  --output_vcf_child ./${params.family_name}/${params.child_name}.vcf \
+  --output_vcf_parent1 ./${params.family_name}/${params.parent1_name}.vcf \
+  --output_vcf_parent2 ./${params.family_name}/${params.parent2_name}.vcf \
+  --output_gvcf_child ./${params.family_name}/${params.child_name}.g.vcf \
+  --output_gvcf_parent1 ./${params.family_name}/${params.parent1_name}.g.vcf \
+  --output_gvcf_parent2 ./${params.family_name}/${params.parent2_name}.g.vcf \
+  --output_gvcf_merged ./${params.family_name}/${params.family_name}.g.vcf \
   --num_shards=${params.threads} \
   --logging_dir logs \
   --intermediate_results_dir intermediate \
@@ -84,12 +106,38 @@ process deeptrio {
 
 workflow {
   main:
-    download_genome(Channel.value(params.genome), Channel.fromPath(params.genome_folder))
     input_dir_ch = Channel.fromPath(params.input_dir)
-    deeptrio(input_dir_ch, download_genome.out[1])
+    def genome_folder = params.reference_folder + "/" + params.genome 
+    
+    
+    def expected_fasta = file(genome_folder + "/" + params.genome_fasta_name)
+    def reference_provided = (params.genome_fasta_name != null) && expected_fasta.isFile()
 
-  emit:
-    deeptrio.out
+    if(reference_provided){
+      genome_dir_ch = Channel.fromPath(genome_folder)
+      genome_fasta_name_ch = Channel.value(params.genome_fasta_name)
+      deeptrio(input_dir_ch, genome_dir_ch, genome_fasta_name_ch)
+    } else {
+      println("reference ${expected_fasta} does not seem to exist!")
+    }
+
+    /*
+    if(params.reference_genome_fasta && file(params.reference_genome_fasta))
+    {
+      ref_genome = Channel.fromPath("${params.input_dir}/${params.genome}.fasta")
+      ref_genome_fai = Channel.fromPath("${params.input_dir}/${params.genome}.fai")
+      deeptrio(input_dir_ch, ref_genome, ref_genome_fai)
+    }
+    else {
+      download_genome(Channel.value(params.genome), Channel.fromPath(params.genome_folder))
+      ref_genome = Channel.fromPath("${download_genome.out}/${params.genome}.fasta")
+      ref_genome_fai = Channel.fromPath("${download_genome.out}/${params.genome}.fai")
+      deeptrio(input_dir_ch, ref_genome, ref_genome_fai)
+    }
+    */
+
+  //emit:
+  //  deeptrio.out
 }
 
 

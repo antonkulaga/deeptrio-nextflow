@@ -4,3 +4,4 @@
 # But not these files...
 !.gitignore
 !hs37d5.chr20
+!hs37d5.chr20/*

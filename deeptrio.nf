@@ -65,6 +65,7 @@ process deeptrio {
   echo "with the input genome fasta name ${genome_fasta_name}"
   mkdir ${params.family_name}
   mkdir intermediate
+  echo "the process folders are:"
   echo \$(ls)
   /opt/deepvariant/bin/deeptrio/run_deeptrio \
   --model_type=${params.model} \
@@ -109,7 +110,7 @@ workflow {
       reference_folder_ch = Channel.fromPath(params.reference_folder)
 
       download_genome(genome_ch,  reference_folder_ch)
-      genome_path = download_genome
+      genome_path = download_genome.out
       println("DOWNLOADED the genome, starting the deeptrio process!")
       genome_dir_ch = Channel.fromPath(genome_folder)
       genome_fasta_name_ch = Channel.value(params.genome + ".fa") //it is rully ugly, but should work with Ensembl
